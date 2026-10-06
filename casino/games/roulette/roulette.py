@@ -9,6 +9,7 @@ import re
 from casino.types import GameContext
 from casino.utils import clear_screen, cprint, cinput, display_topbar
 from casino.accounts import Account
+from casino.stats import GameStats, display_stats
 
 ROULETTE_HEADER = """
 ┌─────────────────────────────┐
@@ -166,6 +167,11 @@ class Roulette:
         self.valid_numbers = []
 
         self.accounts = accounts
+
+        self.stats = [GameStats("Roulette", account.balance) for account in self.accounts]
+        # set ending to starting in case no hand is ever played
+        for stats in self.stats:
+            stats.ending_balance = stats.starting_balance
 
         # Current round's bets
         self.bets = {}
@@ -443,13 +449,19 @@ class Roulette:
                 # Find account and pay back 36 times original amount
                 win_multiplier += 35
 
+            self.stats[i].rounds_played += 1
+
             if win_multiplier > 1:
                 win_amount = bet_amount * win_multiplier
                 self.accounts[i].deposit(win_amount)
+                self.stats[i].wins += 1
                 cprint(f"Player {i+1}: Won {win_amount} coins.")
             else:
+                self.stats[i].losses += 1
                 cprint(f"Player {i+1}: Lost {bet_amount} coins.")
-            
+
+            self.stats[i].ending_balance = self.accounts[i].balance
+
             i += 1
 
         cprint("Finished payout.")
@@ -516,6 +528,10 @@ def play_roulette(context: GameContext) -> None:
             elif play_again == "" or play_again.lower() in {"y", "yes"}:
                 continue_game = True
                 break
+
+    # only display first player's stats for now
+    # may need to be adjusted with multiplayer
+    display_stats(roulette.stats[0])
 
     #cprint("Exiting roulette...")
     #sleep(0.5)

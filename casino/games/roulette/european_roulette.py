@@ -10,6 +10,7 @@ import casino.utils as utils
 from casino.types import GameContext
 from casino.utils import clear_screen, cprint, cinput, display_topbar
 from casino.accounts import Account
+from casino.stats import GameStats, display_stats
 
 ROULETTE_HEADER = """
 ┌────────────────────────────────────────────────┐
@@ -249,6 +250,11 @@ class Roulette:
         self.valid_numbers = []
 
         self.accounts = accounts
+
+        self.stats = [GameStats("Roulette", account.balance) for account in self.accounts]
+        # set ending to starting in case no hand is ever played
+        for stats in self.stats:
+            stats.ending_balance = stats.starting_balance
 
         # Current round's bets
         self.bets = {}
@@ -557,22 +563,25 @@ class Roulette:
         assert self.winning_value is not None
         winning_number = self.winning_value[0]
 
-        accounts_by_id = {
-            str(a.aid): (a, index + 1)
-            for index, a in enumerate(self.accounts)}
+        accounts_and_stats_by_id = {
+            str(a.aid): (a, s, index + 1)
+            for index, (a, s) in enumerate(zip(self.accounts, self.stats))}
 
         cprint("Paying out all winners...")
         is_zero = (winning_number == "0")
         winning_int = None if is_zero else int(winning_number)
         for account_id, bet in self.bets.items():
-            entry = accounts_by_id.get(account_id)
+            entry = accounts_and_stats_by_id.get(account_id)
             if entry is None:
                 continue
 
-            account, player_number = entry
+            account, stats, player_number = entry
             bet_type = bet["type"]
             bet_value = bet["value"]
             bet_amount = bet["amount"]
+
+            # update round played if a bet was placed
+            stats.rounds_played += 1
 
             win_multiplier = self._compute_win_multiplier(
                 bet_type=bet_type,
@@ -583,11 +592,20 @@ class Roulette:
             )
 
             if win_multiplier > 1:
+                if stats is not None:
+                    stats.wins += 1
+
                 win_amount = bet_amount * win_multiplier
                 account.deposit(win_amount)
                 cprint(f"Player {player_number}: Won {win_amount} coins.")
             else:
+                if stats is not None:
+                    stats.losses += 1
+
                 cprint(f"Player {player_number}: Lost {bet_amount} coins.")
+
+            # update balance
+            stats.ending_balance = account.balance
 
         cprint("Finished payout.")
 
@@ -661,6 +679,9 @@ def play_european_roulette(context: GameContext) -> None:
 
         status = roulette.submit_bets(context)
         if status == "BANKRUPT":
+            # display stats
+            display_stats(roulette.stats[0])
+
             return
 
         roulette.spin_wheel(context)
@@ -672,6 +693,9 @@ def play_european_roulette(context: GameContext) -> None:
         if play_again in {"", "y", "yes"}:
             pass  # next round
         elif play_again in {"n", "no"}:
+            # display stats
+            display_stats(roulette.stats[0])
+
             return
         else:
             play_again = prompt_with_error(
@@ -683,4 +707,7 @@ def play_european_roulette(context: GameContext) -> None:
                 transform=lambda s: s.strip().lower(),
             )
             if play_again in {"n", "no"}:
+                # display stats
+                display_stats(roulette.stats[0])
+
                 return

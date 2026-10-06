@@ -592,16 +592,12 @@ class Roulette:
             )
 
             if win_multiplier > 1:
-                if stats is not None:
-                    stats.wins += 1
-
+                stats.wins += 1
                 win_amount = bet_amount * win_multiplier
                 account.deposit(win_amount)
                 cprint(f"Player {player_number}: Won {win_amount} coins.")
             else:
-                if stats is not None:
-                    stats.losses += 1
-
+                stats.losses += 1
                 cprint(f"Player {player_number}: Lost {bet_amount} coins.")
 
             # update balance
@@ -675,6 +671,9 @@ def play_european_roulette(context: GameContext) -> None:
         choice = cinput("Press [Enter] to start a new round and [q] to quit: ").strip().lower()
 
         if choice in {"q", "quit"}:
+            # display stats
+            display_stats(roulette.stats[0])
+
             return
 
         status = roulette.submit_bets(context)
